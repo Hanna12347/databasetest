@@ -1,8 +1,8 @@
+require('dotenv').config({ debug: true });
 const express = require("express");
 const bodyParser = require("body-parser");
 const path = require("path");
 const { Pool } = require("pg");
-const { error } = require("console");
 const app =express();
 const PORT = 3001;
 
@@ -10,45 +10,71 @@ const pool = new Pool({
     user:"postgres",
     host:"localhost",
     database:"resturant",
-    password:"haniya",
+    password:process.env.DB_PASSWORD,
     port:5432
 });
 app.use(bodyParser.urlencoded({extended:true}));
 app.set(express.static(path.join(__dirname,"public")));
 app.set("views",path.join(__dirname,"views"))
 app.set("view engine","ejs");
-pool.query('SELECT * FROM public.resturants',(err,result)=>{
-    if(error){
-        console.error("error",error)
-    }else{
-        const resturants = result.rows;
-        console.log(resturants)
-    }
+
+pool.connect((err, client, release) => {
+  if (err) {
+    return console.error('Error acquiring client', err.stack);
+  }
+  console.log('Connected to PostgreSQL database');
+  release();
+});
+
+app.get("/",async(req,res)=>{
+    try {
+    const result = await pool.query('SELECT * FROM public.resturants ORDER BY id ASC ');
+    console.log(result)
+    res.render('index', { restaurants: result });
+  } catch (error) {
+    console.error('Error fetching restaurants:', error);
+  }
 })
-pool.query('SELECT * FROM public.custumers',(err,result)=>{
-    if(error){
-        console.error("error",error)
-    }else{
-        const custumers = result.rows;
-        console.log(custumers)
-    }
+
+app.get('/add', (req, res) => {
+  res.render('add');
+});
+
+app.post('/restaurants', async (req, res) => {
+  const { name } = req.body;
+  
+  if (!name) {
+    console.log("error:",err)
+  }
+
+  try {
+    await pool.query(
+      'INSERT INTO public.restaurants (name) VALUES ($1)',
+      [name]
+    );
+    res.redirect('/');
+  } catch (error) {
+    console.error('Error adding restaurant:', error);
+    
+  }
+});
+
+
+app.post('/delete/:id', async (req, res) => {
+  const { id } = req.params;
+  const result = await pool.query('DELETE FROM public.restaurants WHERE id = $1', [id]);
+  res.redirect('/');
+});
+app.get("/custumers",async(req,res)=>{
+    try {
+    const custumer = await pool.query('SELECT * FROM public.customers ORDER BY id ASC ');
+    console.log(custumer)
+    res.render('index', { custumers: custumer });
+  } catch (error) {
+    console.error('custumers', error);
+  }
 })
-pool.query('SELECT * FROM public.orders',(err,result)=>{
-    if(error){
-        console.error("error",error)
-    }else{
-        const orders = result.rows;
-        console.log(orders)
-    }
-})
-pool.query('SELECT * FROM public.foods',(err,result)=>{
-    if(error){
-        console.error("error",error)
-    }else{
-        const foods = result.rows;
-        console.log(foods)
-    }
-})
+
 app.listen(PORT,()=>{
     console.log("server started")
 })
